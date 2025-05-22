@@ -1,6 +1,6 @@
 import { ResponseType, WalletType } from "@/types"; // Assuming WalletType includes: id?, amount?, totalIncome?, totalExpenses?, created?, image? etc.
 import { uploadFileToCloudinary } from "./imageService"; // Uncommented Cloudinary import
-import { doc, collection, setDoc, deleteDoc } from "firebase/firestore"; // Import Firestore functions
+import { doc, collection, setDoc, deleteDoc, query, where, getDocs, writeBatch } from "firebase/firestore"; // Import Firestore functions
 import { firestore } from '@/config/firebase'; // Assuming firestore instance is exported from here
 
 /**
@@ -66,14 +66,64 @@ export const createOrUpdateWallet = async (
   }
 };
 
+export const deleteTransactionsByWalletId = async (
+  walletId: string
+): Promise<ResponseType> => {
+  try {
+    let hasMoreTransactions = true;
+    
+    while (hasMoreTransactions) {
+      const transactionsQuery = query(
+        collection(firestore, "transactions"),
+        where("walletId", "==", walletId)
+      );
+      
+      const transactionsSnapshot = await getDocs(transactionsQuery);
+      if(transactionsSnapshot.size == 0){
+        hasMoreTransactions = false;
+        break;
+      }
+      
+      const batch = writeBatch(firestore);
+      
+      transactionsSnapshot.forEach((transactionDoc)=>{
+        batch.delete(transactionDoc.ref);
+      });
+      
+      await batch.commit();
+      
+      console.log(`${transactionsSnapshot.size} transactions deleted in this batch`);
+    }
+    
+    return {
+      success: true,
+      msg: "All transactions deleted successfully",
+    };
+  } catch (err: any) {
+    console.error("Error deleting transactions:", err);
+    return { success: false, msg: err.message || "An unexpected error occurred." };
+  }
+};
+
 export const deleteWallet = async (walletId: string): Promise<ResponseType> => {
   try {
+    // First delete all transactions associated with this wallet
+    const deleteTransactionsResult = await deleteTransactionsByWalletId(walletId);
+    if (!deleteTransactionsResult.success) {
+      return deleteTransactionsResult; // Return the error from transaction deletion
+    }
+    
+    // Then delete the wallet itself
     const walletRef = doc(firestore, "wallets", walletId);
     await deleteDoc(walletRef);
-    return { success: true, msg: "Wallet deleted successfully" };
+    
+    return { 
+      success: true, 
+      msg: "Wallet and all associated transactions deleted successfully" 
+    };
   }
   catch (error: any) {
-      console.error("Error deleting wallet:", error);
-      return { success: false, msg: error.message || "An unexpected error occurred." };
-    }
-  }; // Removed the extra closing curly brace here
+    console.error("Error deleting wallet:", error);
+    return { success: false, msg: error.message || "An unexpected error occurred." };
+  }
+};

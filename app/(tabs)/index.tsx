@@ -1,5 +1,5 @@
-import { Button, StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native'
-import React from 'react'
+import { Button, StyleSheet, Text, View, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
+import React, { useCallback, useState } from 'react'
 import Buttons from '@/components/Buttons';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/config/firebase';
@@ -12,10 +12,42 @@ import * as Icons from 'phosphor-react-native';
 import HomeCard from '@/components/HomeCard';
 import TransactionList from '@/components/TransactionList';
 import { useRouter } from 'expo-router';
+import useFetchData from '@/hooks/useFetchData';
+import { where, orderBy, limit } from 'firebase/firestore';
+import { TransactionType } from '@/types';
 
 const Home = () => {
   const {user} = useAuth();
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const constraints = [
+    where("uid", "==", user?.uid),
+    orderBy("date", "desc"),
+    limit(30)
+  ];
+
+  const {
+    data: recentTransactions,
+    error,
+    loading: transactionsLoading,
+    refetch
+  } = useFetchData<TransactionType>("transactions", [
+    where("uid", "==", user?.uid),
+    orderBy("date", "desc"),
+  ]);
+  
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refetch().then(() => setRefreshing(false));
+  }, [refetch]);
+  
+  // Add these before the return statement
+  console.log('User ID:', user?.uid);
+  console.log('Recent Transactions:', recentTransactions);
+  console.log('Transaction Loading:', transactionsLoading);
+  console.log('Transaction Error:', error);
+  console.log('Recent Transactions:', recentTransactions?.length, recentTransactions);
   
   return (
     <ScreenWrapper>
@@ -24,13 +56,16 @@ const Home = () => {
         <View style={styles.header}>
           <View style={{ gap: 4 }}>
             <Typo size={16} color={colors.neutral400}>
-              Hello,
+              Hello, 👋
             </Typo>
             <Typo size={20} fontWeight={"500"}>
-              {user?.name}
+              {user?.name} 
             </Typo>
           </View>
-          <TouchableOpacity style={styles.searchIcon}>
+          <TouchableOpacity
+            onPress={() => router.push("/(modals)/searchModal")}
+            style={styles.searchIcon}
+          >
             <Icons.MagnifyingGlass
               size={verticalScale(22)}
               color={colors.neutral200}
@@ -41,14 +76,18 @@ const Home = () => {
         <ScrollView
          contentContainerStyle={styles.scrollViewStyle}
          showsHorizontalScrollIndicator={false}
+         showsVerticalScrollIndicator={false} // Add this line
+         refreshControl={
+           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+         }
          >
           {/* Cards */}
           <View>
             <HomeCard />
           </View>
           <TransactionList 
-          data={[1,2,3,4,5,6]} 
-          loading={false} 
+          data={recentTransactions} 
+          loading={transactionsLoading} 
           emptyListMessage='No recent transactions!'
           title="Recent Transactions" 
           />

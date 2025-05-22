@@ -1,25 +1,20 @@
-import React, { useEffect, useState } from 'react'; // 6.9k (gzipped: 2.7k)
-import { collection, onSnapshot, query, QueryConstraint } from 'firebase/firestore'; // 551k (gzipped: ?) - Note: Gzip size might vary
-import { firestore } from '@/config/firebase'; // Assuming this path is correct for your project structure
+import React, { useEffect, useState, useCallback } from 'react';
+import { collection, onSnapshot, query, QueryConstraint } from 'firebase/firestore';
+import { firestore } from '@/config/firebase';
 
-/**
- * Custom React hook to fetch data from a Firestore collection in real-time.
- *
- * @template T The expected type of the documents in the collection.
- * @param {string} collectionName The name of the Firestore collection to fetch data from.
- * @param {QueryConstraint[]} [constraints=[]] An optional array of Firestore query constraints (e.g., where, orderBy, limit).
- * @returns {{ data: T[], loading: boolean, error: string | null }} An object containing the fetched data, loading state, and any potential error.
- */
 const useFetchData = <T>(
   collectionName: string,
   constraints: QueryConstraint[] = []
-): { data: T[]; loading: boolean; error: string | null } => {
-  // State to store the fetched data
+): { data: T[]; loading: boolean; error: string | null; refetch: () => Promise<void> } => {
   const [data, setData] = useState<T[]>([]);
-  // State to track the loading status
   const [loading, setLoading] = useState<boolean>(true);
-  // State to store any potential errors during fetching
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refetch = useCallback(async () => {
+    setRefreshKey(prev => prev + 1);
+    return Promise.resolve();
+  }, []);
 
   useEffect(() => {
     // Return early if collectionName is not provided to prevent errors
@@ -69,19 +64,18 @@ const useFetchData = <T>(
       // Cleanup function: Unsubscribe from the listener when the component unmounts
       // or when the dependencies (collectionName, constraints) change.
       // This prevents memory leaks.
+      // Return the unsubscribe function
       return () => unsubscribe();
-
     } catch (err: any) {
-        // Catch any synchronous errors during setup
-        console.error("Error setting up Firestore listener:", err);
-        setError(`Error setting up listener: ${err.message}`);
-        setLoading(false);
+      // Add this catch block to handle any errors during setup
+      console.error("Error setting up Firestore listener:", err);
+      setError(`Error setting up listener: ${err.message}`);
+      setLoading(false);
+      return () => {}; // Return empty cleanup function
     }
+  }, [collectionName, JSON.stringify(constraints), refreshKey]); // Add refreshKey to dependencies
 
-  }, [collectionName, JSON.stringify(constraints)]); // Stringify constraints for stable dependency check
-
-  // Return the state variables: data, loading status, and error
-  return { data, loading, error };
+  return { data, loading, error, refetch };
 };
 
 export default useFetchData;

@@ -1,12 +1,38 @@
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import React from 'react'
 import Typo from './Typo'
 import { colors, spacingX, spacingY } from '@/constants/theme'
 import { scale, verticalScale } from '@/utils/styling'
 import { ImageBackground } from 'expo-image'
 import * as Icons from 'phosphor-react-native'
+import { useAuth } from '@/contexts/authContext'
+import useFetchData from '@/hooks/useFetchData' // Fixed import (default import)
+import { where, orderBy } from 'firebase/firestore' // Added import for query functions
+import { WalletType } from '@/types' // Make sure WalletType is imported
 
 const HomeCard = () => {
+  const {user} = useAuth();
+
+  const {
+    data: wallets,
+    error,
+    loading: walletLoading,
+  } = useFetchData<WalletType>("wallets", [
+    where("uid", "==", user?.uid),
+    orderBy("created", "desc"),
+  ]);
+
+  const getTotals = () => {
+    return wallets.reduce((totals: any, item: WalletType) => {
+      totals.balance = totals.balance + Number(item.amount);
+      totals.income = totals.income + Number(item.totalIncome);
+      totals.expenses = totals.expenses + Number(item.totalExpenses);
+      return totals;
+    }, {balance: 0, income: 0, expenses: 0});
+  };
+
+  const totals = getTotals();
+
   return (
     <ImageBackground
       source={require("../assets/images/card.png")}
@@ -27,7 +53,7 @@ const HomeCard = () => {
             />
           </View>
           <Typo color={colors.black} size={30} fontWeight={"bold"}>
-            OMR 2343.23
+            OMR {walletLoading ? "..." : totals.balance.toFixed(2)}
           </Typo>
         </View>
         {/* total expense and income */}
@@ -48,8 +74,8 @@ const HomeCard = () => {
             </View>
             <View style={{ alignSelf: 'center' }}>
               <Typo size={17} color={colors.green} fontWeight={"500"}>
-                OMR 2342
-                </Typo>
+                OMR {walletLoading ? "..." : totals.income.toFixed(2)}
+              </Typo>
             </View>
           </View>
           
@@ -69,8 +95,8 @@ const HomeCard = () => {
             </View>
             <View style={{ alignSelf: 'center' }}>
               <Typo size={17} color={colors.rose} fontWeight={"500"}>
-               OMR 1200
-                </Typo>
+               OMR {walletLoading ? "..." : totals.expenses.toFixed(2)}
+              </Typo>
             </View>
           </View>
         </View>
@@ -104,14 +130,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  statsIcon: {
-    backgroundColor: colors.neutral350,
-    padding: spacingY._5,
-    borderRadius: 50,
-  },
   incomeExpense: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacingY._7,
-  }
+    gap: spacingX._5,
+  },
+  statsIcon: {
+    backgroundColor: colors.white,
+    height: verticalScale(25),
+    width: verticalScale(25),
+    borderRadius: verticalScale(25) / 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

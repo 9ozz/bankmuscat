@@ -5,8 +5,37 @@ import { colors, spacingX, spacingY, radius } from '@/constants/theme';
 import { scale, verticalScale } from '@/utils/styling';
 import { FlashList } from '@shopify/flash-list';
 import Loading from './Loading';
-import { expenseCategories } from '@/constants/data';
+import { expenseCategories, incomeCategory } from '@/constants/data';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
+import { TransactionType, WalletType } from '@/types';
+import { Timestamp } from 'firebase/firestore';
+import useFetchData from '@/hooks/useFetchData';
+import { where } from 'firebase/firestore';
+import { useAuth } from '@/contexts/authContext';
+
+// Add this helper function outside of any component
+const formatDate = (dateValue: any) => {
+  try {
+    if (!dateValue) return 'Unknown date';
+    
+    // Handle Firestore Timestamp objects
+    if (dateValue && typeof dateValue.toDate === 'function') {
+      return dateValue.toDate().toLocaleDateString();
+    }
+    
+    // Handle ISO strings or other date formats
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString();
+    }
+    
+    return 'Invalid date';
+  } catch (e) {
+    console.error('Date formatting error:', e);
+    return 'Invalid date';
+  }
+};
 
 interface TransactionItemProps {
   item: any;
@@ -15,7 +44,7 @@ interface TransactionItemProps {
 }
 
 const TransactionItem = ({ item, index, handleClick }: TransactionItemProps) => {
-  let category = expenseCategories['transportation']
+  let category = item?.type === "income" ? incomeCategory : expenseCategories[item?.category];
   const IconComponent = category.icon;
   return (
     <Animated.View
@@ -36,15 +65,15 @@ const TransactionItem = ({ item, index, handleClick }: TransactionItemProps) => 
         <View style={styles.categoryDes}>
           <Typo size={17}>{category.label}</Typo>
           <Typo size={12} color={colors.neutral400} textProps={{numberOfLines: 1}}>
-            paidwifi on 22/05/2023
-          </Typo>  
+            {item?.description || 'No description'}
+          </Typo>
         </View>
         <View style={styles.amountDate}>
-          <Typo fontWeight={"500"} color={colors.rose}>
-            - $23
+          <Typo fontWeight={"500"} color={item?.type === "expense" ? colors.rose : colors.green}>
+            {item?.type === "expense" ? '- ' : '+ '}OMR {item?.amount || 0}
           </Typo>
           <Typo size={13} color={colors.neutral400}>
-            12 jan
+            {formatDate(item?.date)}
           </Typo>
         </View>
       </TouchableOpacity>
@@ -65,8 +94,37 @@ const TransactionList = ({
   loading,
   emptyListMessage = "No transactions found",
 }: TransactionListType) => {
-  const handleClick = () => {
-    // todo: open transaction details
+
+  const router = useRouter();
+  const { user } = useAuth();
+  
+  // Fetch wallets to filter transactions
+  const {
+    data: wallets,
+  } = useFetchData<WalletType>("wallets", [
+    where("uid", "==", user?.uid),
+  ]);
+  
+  // Filter transactions to only show those with existing wallets
+  const filteredData = data?.filter(transaction => {
+    return wallets.some(wallet => wallet.id === transaction.walletId);
+  });
+
+  const handleClick = (item: TransactionType) => {
+   router.push({
+    pathname: '/(modals)/transactionModal',
+    params: {
+      id: item?.id,  // Changed from "item" to "id" to match what the modal expects
+      type: item?.type,
+      category: item?.category,
+      amount: item?.amount.toString(),
+      date: (item?.date as Timestamp).toDate().toISOString(),
+      description: item?.description,
+      image: item?.image,
+      uid: item?.uid,
+      walletId: item?.walletId,
+    }
+   })
   };
 
   return (
@@ -87,7 +145,7 @@ const TransactionList = ({
         <>
           <View style={styles.list}>
             <FlashList
-              data={data}
+              data={filteredData}
               renderItem={({ item, index }) => (
                 <TransactionItem 
                   item={item}
@@ -96,6 +154,7 @@ const TransactionList = ({
                 />
               )}
               estimatedItemSize={60}
+              showsVerticalScrollIndicator={false}
             />
           </View>
           
@@ -137,7 +196,8 @@ const styles = StyleSheet.create({
     borderRadius: radius._17, // Add this line to make the icon rounded
   },
   list: {
-    height: 300, // FlashList requires a fixed height
+    height: 500, // Increase height to show more transactions
+    overflow: 'hidden', // Add this line to hide scrollbar
   },
   loadingContainer: {
     height: 150,

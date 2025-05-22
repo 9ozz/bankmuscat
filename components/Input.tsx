@@ -27,20 +27,20 @@ export default Input;
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    height: verticalScale(64),
+    height: verticalScale(56), // Reduced height for cleaner look
     alignItems: "center",
     justifyContent: "flex-start",
     borderWidth: 1,
-    borderColor: colors.neutral300,
-    borderRadius: radius._17,
+    borderColor: colors.neutral600, // Darker border for better contrast
+    borderRadius: radius._15, // Consistent with dropdowns
     borderCurve: "continuous",
     paddingHorizontal: spacingX._15,
     gap: spacingX._10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.neutral800, // Match dropdown background
   },
   input: {
     flex: 1,
     color: colors.white,
-    fontSize: verticalScale(14),
+    fontSize: verticalScale(15), // Match dropdown text size
   },
 });
