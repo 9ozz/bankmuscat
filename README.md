@@ -17,7 +17,7 @@ Welcome to the BankMuscat mobile app repository! This project is a modern, full-
 ### 1. Clone the Repository
 ```
 git clone https://github.com/
-your-username/bankmuscat.git
+9ozz/bankmuscat.git
 cd bankmuscat/bankmuscat
 ```
 ### 2. Install Dependencies
